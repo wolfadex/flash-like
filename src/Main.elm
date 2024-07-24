@@ -331,8 +331,19 @@ update msg model =
 
                                             Just shapeTimeline ->
                                                 case getShapeAfterTime model.globalOffset shapeTimeline of
-                                                    NoShapeFound ->
-                                                        shapes
+                                                    LastShapeFound newInterpolatedShape ->
+                                                        let
+                                                            newTimeline : NonemptyArray ShapeInstance
+                                                            newTimeline =
+                                                                shapeTimeline
+                                                                    |> Nonempty.Array.insertAt (newInterpolatedShape.index + 1)
+                                                                        { shape = newInterpolatedShape.shape
+                                                                        , offset = newInterpolatedShape.offset
+                                                                        }
+                                                        in
+                                                        Array.set indexStart
+                                                            newTimeline
+                                                            shapes
 
                                                     KeyedShapeAlreadyAtTime ->
                                                         shapes
@@ -348,7 +359,7 @@ update msg model =
                                                                                 | offset = instance.offset - newInterpolatedShape.offset
                                                                             }
                                                                         )
-                                                                    |> Nonempty.Array.insertAt newInterpolatedShape.index
+                                                                    |> Nonempty.Array.insertAt (newInterpolatedShape.index + 1)
                                                                         { shape = newInterpolatedShape.shape
                                                                         , offset = newInterpolatedShape.offset
                                                                         }
@@ -689,7 +700,7 @@ getShapeAtTimeHelper index offset timeline =
 type FindKeyedShape
     = KeyedShapeAlreadyAtTime
     | InterpolatedShape { shape : Shape, offset : Float, index : Int }
-    | NoShapeFound
+    | LastShapeFound { shape : Shape, offset : Float, index : Int }
 
 
 getShapeAfterTime : Float -> NonemptyArray ShapeInstance -> FindKeyedShape
@@ -719,7 +730,11 @@ getShapeAfterTimeHelper index offset timeline =
                     }
 
             else
-                NoShapeFound
+                LastShapeFound
+                    { shape = first.shape
+                    , offset = offset
+                    , index = index
+                    }
 
         ( first, next :: rest ) ->
             let
@@ -730,7 +745,11 @@ getShapeAfterTimeHelper index offset timeline =
                 KeyedShapeAlreadyAtTime
 
             else if offset < first.offset then
-                NoShapeFound
+                LastShapeFound
+                    { shape = first.shape
+                    , offset = nextOffset
+                    , index = index
+                    }
 
             else
                 let
@@ -750,7 +769,11 @@ getShapeAfterTimeHelper index offset timeline =
                     in
                     case interpolateShapeFrom first.shape next.shape offsetDistance of
                         Nothing ->
-                            NoShapeFound
+                            LastShapeFound
+                                { shape = first.shape
+                                , offset = remainingOffset
+                                , index = index
+                                }
 
                         Just shape ->
                             InterpolatedShape
